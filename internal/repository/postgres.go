@@ -1,9 +1,13 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"hash/crc32"
 	"time"
+	"user-core-service/internal/domain"
+
 	_ "github.com/lib/pq"
 )
 
@@ -49,3 +53,27 @@ func (sm *ShardManager) Close() error {
 	}
 	return nil
 }
+
+func (sm *ShardManager) getShardID(id string) int {
+	checkSum := crc32.ChecksumIEEE([]byte(id))
+	return int(checkSum%2)+1
+}
+
+
+func (sm *ShardManager) Save(ctx context.Context, user *domain.User) error {
+	shardID := sm.getShardID(user.ID)
+	fmt.Printf("[Postgres Shard] Saving user %s to Shard %d\n", user.ID, shardID)
+	return nil
+}
+
+func (sm *ShardManager) GetByID(ctx context.Context, id string) (*domain.User, error) {
+	shardID := sm.getShardID(id)
+	fmt.Printf("[Postgres Shard] Fetching user by ID %s from Shard %d\n", id, shardID)
+	return &domain.User{}, nil
+}
+
+func (sm *ShardManager) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	fmt.Printf("[Postgres Shard] GetByEmail call for %s (Requires lookup index)\n", email)
+	return &domain.User{}, nil 
+}
+
