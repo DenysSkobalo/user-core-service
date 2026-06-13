@@ -62,14 +62,41 @@ func (sm *ShardManager) getShardID(id string) int {
 
 func (sm *ShardManager) Save(ctx context.Context, user *domain.User) error {
 	shardID := sm.getShardID(user.ID)
-	fmt.Printf("[Postgres Shard] Saving user %s to Shard %d\n", user.ID, shardID)
+	db, ok := sm.shards[shardID]
+	if !ok {
+		return fmt.Errorf("[Shard Manager] shard %d not found for user %s", shardID, user.ID)
+	}
+
+	query := "INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)"
+	
+	_, err := db.ExecContext(ctx, query, user.ID, user.Email, user.PasswordHash)
+	if err != nil {
+		return fmt.Errorf("[Shard Manager] failed to execute insert on shard %d: %w", shardID, err)
+	}
+
 	return nil
 }
 
 func (sm *ShardManager) GetByID(ctx context.Context, id string) (*domain.User, error) {
 	shardID := sm.getShardID(id)
-	fmt.Printf("[Postgres Shard] Fetching user by ID %s from Shard %d\n", id, shardID)
-	return &domain.User{}, nil
+	db, ok := sm.shards[shardID]
+	if !ok {
+		return nil, fmt.Errorf("[Shard Manager] shard %d not found for id %s", shardID, id)
+	}
+
+	query := "SELECT id, email, password_hash FROM users WHERE id = $1"
+	
+	var u domain.User
+
+	err := db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.Email, &u.PasswordHash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil 
+		}
+		return nil, fmt.Errorf("[Shard Manager] failed to scan user from shard %d: %w", shardID, err)
+	}
+
+	return &u, nil
 }
 
 func (sm *ShardManager) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
