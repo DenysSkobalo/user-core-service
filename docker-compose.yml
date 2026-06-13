@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  user_db_shard_1:
+    image: postgres:15-alpine
+    container_name: user_db_shard_1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: user_core_shard_1
+    ports:
+      - "5431:5432"
+    volumes:
+      - pg_shard_1_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d user_core_shard_1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - user_network
+
+  user_db_shard_2:
+    image: postgres:15-alpine
+    container_name: user_db_shard_2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: user_core_shard_2
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_shard_2_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d user_core_shard_2"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - user_network
+
+  user_cache:
+    image: redis:7-alpine
+    container_name: user_cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_cache_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - user_network
+
+volumes:
+  pg_shard_1_data:
+    driver: local
+  pg_shard_2_data:
+    driver: local
+  redis_cache_data:
+    driver: local
+
+networks:
+  user_network:
+    driver: bridge
