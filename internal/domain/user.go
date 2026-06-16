@@ -2,7 +2,10 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -11,7 +14,7 @@ type User struct {
 	PasswordHash string
 }
 
-func NewUser (email, rawPassord string) (*User, error) {
+func NewUser (email, rawPassword string) (*User, error) {
 	if email == "" {
 		return nil, errors.New("[Constructor] Email cannot be empty")
 	}
@@ -21,12 +24,17 @@ func NewUser (email, rawPassord string) (*User, error) {
 		return nil, errors.New("[Constructor] Invalid email format")
 	}
 
-	if len(rawPassord) < 8 {
+	if len(rawPassword) < 8 {
 		return nil, errors.New("[Constructor] Password must be at least 8 characters long")
 	}
 	
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("[Constructor] Failed to hash password: %w", err)
+	}
+
 	return &User{
 		Email: email,
-		PasswordHash: rawPassord,
+		PasswordHash: string(hashedPassword),
 	}, nil
 }
