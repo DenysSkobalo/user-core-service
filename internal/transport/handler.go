@@ -24,6 +24,11 @@ type CreateUserResponse struct {
 	Email string `json:"email"`
 }
 
+type UserResponse struct {
+	ID string `json:"id"`
+	Email string `json:"email"`
+}
+
 func NewHandler(repo repository.UserRepository) *UserHandler {
 	return &UserHandler{
 		repo: repo,
@@ -76,4 +81,43 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(responseDto)
+}
+
+func (h *UserHandler) GetByEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Method !=  http.MethodGet {
+		w.Header().Set("Allow", http.MethodPost)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = w.Write([]byte(`{"error": "method not allowed"}`))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"email query parameter is required"}`))
+		return
+	}
+
+	user, err := h.repo.GetByEmail(r.Context(), email)
+	if err != nil {
+		log.Printf("[ERROR] Database lookup failed for email %s: %v", email, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+		return
+	}
+
+	if user == nil {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"user not found"}`))
+		return
+	}
+	
+	responseDto := UserResponse{
+		ID: user.ID,
+		Email: user.Email,
+	}
+
+	_ = json.NewEncoder(w).Encode(responseDto) 
 }
