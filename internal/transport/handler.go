@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"user-core-service/internal/domain"
 	"user-core-service/internal/repository"
@@ -60,7 +60,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	b := make([]byte, 16)
 	if _, err = rand.Read(b); err != nil {
-		log.Printf("[ERROR]: Failed to generate cryptographically secure UUID: %v", err)
+		slog.Error("failed to generate cryptographically secure UUID", "error",  err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
 		return
@@ -68,7 +68,10 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	newUser.ID = fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 
 	if err = h.repo.Save(r.Context(), newUser); err != nil {
-		log.Printf("[ERROR] Database save execution failed for user %s: %v", newUser.ID, err)
+		slog.ErrorContext(r.Context(), "database save execution failed", 
+			"user_id", newUser.ID, 
+			"error", err,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
 		return
@@ -102,7 +105,10 @@ func (h *UserHandler) GetByEmail(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.repo.GetByEmail(r.Context(), email)
 	if err != nil {
-		log.Printf("[ERROR] Database lookup failed for email %s: %v", email, err)
+		slog.ErrorContext(r.Context(), "database lookup failed", 
+			"email", email, 
+			"error", err,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
 		return

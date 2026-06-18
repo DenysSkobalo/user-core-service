@@ -99,8 +99,3 @@ func (sm *ShardManager) GetByID(ctx context.Context, id string) (*domain.User, e
 	return &u, nil
 }
 
-func (sm *ShardManager) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
-	fmt.Printf("[Postgres Shard] GetByEmail call for %s (Requires lookup index)\n", email)
-	return &domain.User{}, nil 
-}
-
