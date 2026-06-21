@@ -74,6 +74,8 @@ func (r *UserRepositoryImpl) GetByEmail(ctx context.Context, email string) (*dom
 				slog.Info("redis index successfully restored via lazy recovery", "email", u.Email)
 			}
 		}(user)
+
+		return user, nil
 	}
 
 	return r.shardMgr.GetByID(ctx, id)

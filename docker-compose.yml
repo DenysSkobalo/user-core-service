@@ -55,6 +55,57 @@ services:
     networks:
       - user_network
 
+  migrate_shard_1:
+    image: migrate/migrate
+    container_name: migrate_shard_1
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - -path=/migrations
+      - -database=postgres://postgres:postgres@user_db_shard_1:5432/user_core_shard_1?sslmode=disable
+      - up
+    depends_on:
+      user_db_shard_1:
+        condition: service_healthy
+    networks:
+      - user_network
+
+  migrate_shard_2:
+    image: migrate/migrate
+    container_name: migrate_shard_2
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - -path=/migrations
+      - -database=postgres://postgres:postgres@user_db_shard_2:5432/user_core_shard_2?sslmode=disable
+      - up
+    depends_on:
+      user_db_shard_2:
+        condition: service_healthy
+    networks:
+      - user_network
+
+  user_app:
+    build: .
+    container_name: user_app
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_PORT=:8080
+      - LOG_LEVEL=info
+      - SHARD_1_DSN=postgres://postgres:postgres@user_db_shard_1:5432/user_core_shard_1?sslmode=disable
+      - SHARD_2_DSN=postgres://postgres:postgres@user_db_shard_2:5432/user_core_shard_2?sslmode=disable
+      - REDIS_ADDR=user_cache:6379
+    depends_on:
+      user_db_shard_1:
+        condition: service_healthy
+      user_db_shard_2:
+        condition: service_healthy
+      user_cache:
+        condition: service_healthy
+    networks:
+      - user_network
+
 volumes:
   pg_shard_1_data:
     driver: local
