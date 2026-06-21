@@ -2,20 +2,20 @@ package repository
 
 import (
 	"context"
-	"time"
 	"fmt"
+	"time"
+	"user-core-service/internal/config"
 
 	"github.com/redis/go-redis/v9"
-
 )
 
 type CacheManager struct {
 	client *redis.Client
 }
 
-func NewCacheManager() (*CacheManager, error) {
+func NewCacheManager(c *config.Config) (*CacheManager, error) {
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: c.RedisAddr,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -47,10 +47,18 @@ func (cm *CacheManager) GetIDByEmail(ctx context.Context, email string) (string,
 	id, err := cm.client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return "", nil 
+			return "", nil
 		}
 		return "", fmt.Errorf("failed to get email index from redis: %w", err)
 	}
 
 	return id, nil
+}
+
+func (cm *CacheManager) HealthCheckCache(healthCtx context.Context) error {
+	if err := cm.client.Ping(healthCtx).Err(); err != nil {
+		return fmt.Errorf("redis connection failed: %w", err)
+	}
+
+	return nil
 }

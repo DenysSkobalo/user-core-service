@@ -1,4 +1,4 @@
-.PHONY: build run test docker-up docker-down clean
+.PHONY: build run test docker-up docker-down clean fmt lint install-lint
 
 build:
 	go build -v ./...
@@ -18,3 +18,12 @@ docker-down:
 clean:
 	go clean
 	rm -rf bin/
+
+fmt:
+	golangci-lint fmt
+
+install-lint:
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2
+
+lint:
+	golangci-lint run ./...

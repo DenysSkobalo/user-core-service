@@ -42,6 +42,7 @@ services:
   user_cache:
     image: redis:7-alpine
     container_name: user_cache
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:
