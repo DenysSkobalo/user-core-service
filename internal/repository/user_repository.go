@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
-	"user-core-service/internal/domain"
+	"gostream-hub/internal/domain"
 )
 
 type UserRepositoryImpl struct {
@@ -28,14 +28,27 @@ func (r *UserRepositoryImpl) Save(ctx context.Context, user *domain.User) error 
 
 	err = r.cacheMgr.SetEmailIndex(ctx, user.Email, user.ID)
 	if err != nil {
-		slog.ErrorContext(
+		slog.WarnContext(
 			ctx, "dual-write critical mismatch: redis index creation failed after postgres save. Initiating rollback...",
 			"user_id", user.ID,
 			"email", user.Email,
 			"error", err,
 		)
 
-		return fmt.Errorf("[Repository] database transaction aborted due to global index failure: %w", err)
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		if rollbackErr := r.shardMgr.Delete(rollbackCtx, user.ID); rollbackCtx != nil {
+			slog.ErrorContext(
+				ctx, "CRITICAL: rollback failed, system in inconsistent state!",
+				"user_id", user.ID,
+				"rollback_error", rollbackErr,
+			)
+			return fmt.Errorf("failed to save cache and critical rollback failed: %w", err)
+		}
+		slog.InfoContext(ctx, "rollback completed successfully", "user_id", user.ID)
+
+		return fmt.Errorf("failed to save cache, user transaction rolled back: %w", err)
 	}
 
 	return nil

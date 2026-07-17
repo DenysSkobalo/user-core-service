@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"user-core-service/internal/config"
+	"gostream-hub/internal/config"
 
 	"github.com/redis/go-redis/v9"
 )

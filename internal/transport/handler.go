@@ -3,12 +3,12 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"gostream-hub/internal/domain"
+	"gostream-hub/internal/repository"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-	"user-core-service/internal/domain"
-	"user-core-service/internal/repository"
 )
 
 func RegisterUserRoutes(mux *http.ServeMux, h *UserHandler) {

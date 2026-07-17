@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"time"
-	"user-core-service/internal/config"
-	"user-core-service/internal/domain"
+	"gostream-hub/internal/config"
+	"gostream-hub/internal/domain"
 
 	_ "github.com/lib/pq"
 )
@@ -80,6 +80,25 @@ func (sm *ShardManager) Save(ctx context.Context, user *domain.User) error {
 	return nil
 }
 
+func (sm *ShardManager) Delete(ctx context.Context, id string) error {
+	shardID := sm.getShardID(id)
+	db, ok := sm.shards[shardID]
+	if !ok {
+		return fmt.Errorf("[Shard Manager] shard %d not found for user %s", shardID, id)
+	}
+
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := "DELETE FROM users WHERE id = $1"
+	_, err := db.ExecContext(dbCtx, query, id)
+	if err != nil {
+		return fmt.Errorf("[Shard Manager] failed to execute delete on shard %d: %w", shardID, err)
+	}
+
+	return nil
+}
+
 func (sm *ShardManager) GetByID(ctx context.Context, id string) (*domain.User, error) {
 	shardID := sm.getShardID(id)
 	db, ok := sm.shards[shardID]
@@ -106,26 +125,43 @@ func (sm *ShardManager) GetByID(ctx context.Context, id string) (*domain.User, e
 }
 
 func (sm *ShardManager) GetByEmailFallback(ctx context.Context, email string) (*domain.User, error) {
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	resultCh := make(chan *domain.User, len(sm.shards))
+	errCh := make(chan error, len(sm.shards))
+
 	for shardID, db := range sm.shards {
-		query := "SELECT id, email, password_hash FROM users WHERE email = $1"
-		var u domain.User
+		go func(db *sql.DB, sID int) {
+			query := "SELECT id, email, password_hash FROM users WHERE email = $1"
+			var u domain.User
 
-		dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
+		
+			err := db.QueryRowContext(dbCtx, query, email).Scan(&u.ID, &u.Email, &u.PasswordHash)
+			if err == nil {
+				resultCh <- &u
+				return 
+			}
 
-		err := db.QueryRowContext(dbCtx, query, email).Scan(&u.ID, &u.Email, &u.PasswordHash)
-		if err == nil {
-			return &u, nil
-		}
-
-		if err == sql.ErrNoRows {
-			continue
-		}
-
-		return nil, fmt.Errorf("fallback scan failed on shard %d: %w", shardID, err)
+			errCh <- err
+		}(db, shardID)
 	}
 
-	return nil, nil
+	errCount := 0
+	for {
+		select {
+		case user := <-resultCh:
+			return user, nil
+		case <-errCh:
+			errCount++
+			if errCount == len(sm.shards) {
+				return nil, nil
+			}
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 func (sm *ShardManager) HealthCheckShards(healthCtx context.Context) error {

@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"user-core-service/internal/domain"
+	"gostream-hub/internal/domain"
 )
 
 type UserRepository interface {
